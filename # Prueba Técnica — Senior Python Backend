@@ -1,0 +1,135 @@
+# Prueba Técnica — Senior Python Backend Engineer
+
+**Duración estimada:** 3-5 días (take-home)
+**Formato de entrega:** Repositorio Git (GitHub/GitLab) + README
+
+---
+
+## Contexto
+
+En Dribba estamos construyendo una plataforma de ingesta y consulta de eventos de telemetría para dispositivos IoT desplegados en campo. Cada dispositivo emite eventos con frecuencia variable (entre 1 y 100 eventos/segundo por dispositivo) que deben ser persistidos, agregados y consultables en tiempo casi real.
+
+Tu tarea es diseñar e implementar el **servicio backend** que recibe, almacena y expone estos datos.
+
+No esperamos un sistema perfecto ni completo. Queremos ver cómo piensas, qué decisiones tomas y cómo las justificas. **La calidad importa más que la cantidad.** Si tienes que elegir entre cubrir todos los puntos a medias o resolver bien la mitad, prefiere lo segundo y deja documentado qué dejarías para una segunda iteración.
+
+---
+
+## Requisitos funcionales
+
+Construye una API HTTP en Python que ofrezca los siguientes endpoints:
+
+### 1. Ingesta de eventos
+
+`POST /events`
+
+Recibe un evento individual o un batch (hasta 1000 eventos por request) con la siguiente estructura:
+
+```json
+{
+  "device_id": "esp32-a1b2c3",
+  "timestamp": "2026-05-07T10:30:00Z",
+  "metric": "temperature",
+  "value": 23.4,
+  "metadata": { "firmware": "1.2.3", "location": "warehouse-3" }
+}
+```
+
+- Debe validar el payload y rechazar eventos malformados con un error claro.
+- Debe ser **idempotente**: si llega el mismo evento dos veces (mismo `device_id` + `timestamp` + `metric`), no debe duplicarse.
+- Debe responder en **menos de 200ms p95** para batches de hasta 100 eventos en condiciones normales.
+
+### 2. Consulta agregada
+
+`GET /devices/{device_id}/metrics/{metric}/aggregate`
+
+Query params:
+- `from`, `to`: rango temporal (ISO 8601)
+- `interval`: `1m`, `5m`, `1h`, `1d`
+- `aggregation`: `avg`, `min`, `max`, `sum`, `count`
+
+Devuelve series temporales agregadas en ventanas del intervalo solicitado. Pensar en cómo esta consulta debe escalar cuando un dispositivo tiene millones de eventos.
+
+### 3. Listado de dispositivos activos
+
+`GET /devices?active_since=...`
+
+Devuelve la lista paginada de dispositivos que han emitido al menos un evento en el rango indicado, junto con el timestamp de su último evento.
+
+### 4. Health check
+
+`GET /health` con verificación real de dependencias (DB, etc.).
+
+---
+
+## Requisitos no funcionales
+
+- **Lenguaje:** Python 3.11+
+- **Framework:** libre elección (FastAPI, Litestar, Starlette, Flask, lo que prefieras). Justifica tu decisión.
+- **Persistencia:** PostgreSQL (puedes usar TimescaleDB si lo consideras adecuado, no es obligatorio).
+- **Concurrencia:** el servicio debe soportar carga concurrente real. Asíncrono si lo crees apropiado.
+- **Containerización:** `docker-compose up` debe levantar el sistema completo (API + DB) sin pasos manuales.
+- **Tests:** cobertura razonable de la lógica de negocio crítica. No buscamos 100%, sí los tests que tú escribirías en producción.
+
+---
+
+## Lo que vamos a evaluar
+
+### Diseño y arquitectura
+- Separación de capas (API, dominio, persistencia).
+- Modelo de datos: ¿cómo organizas las tablas? ¿índices? ¿particionado?
+- Trade-offs: escribibilidad vs. consultabilidad, normalización vs. denormalización para series temporales.
+- Decisiones de diseño documentadas (por qué sí, por qué no).
+
+### Código limpio y testing
+- Legibilidad, naming, organización del proyecto.
+- Tipado estático (mypy/pyright bienvenido).
+- Tests unitarios y al menos un test de integración end-to-end.
+- Manejo de errores consistente.
+
+### Performance y concurrencia
+- ¿Cómo aseguras la idempotencia bajo carga concurrente?
+- ¿Cómo manejas batches grandes sin bloquear el event loop ni saturar la DB?
+- Benchmarks o medidas de carga (aunque sea simples con `locust`, `wrk` o un script propio) son un plus.
+- Estrategia de pooling de conexiones, transacciones, etc.
+
+### Manejo de datos / SQL
+- Consultas SQL eficientes para las agregaciones temporales (no hagas que el ORM te las invente sin revisión).
+- Uso adecuado de índices.
+- Estrategia para que las consultas escalen con el volumen de datos.
+
+---
+
+## Entregables
+
+1. **Repositorio Git** con historial de commits coherente (no nos mandes un único commit "initial commit"; queremos ver cómo trabajas).
+2. **README** con:
+   - Cómo ejecutar el proyecto local (idealmente: `docker-compose up` y ya).
+   - Decisiones de diseño y trade-offs asumidos.
+   - Qué dejarías para una siguiente iteración y por qué.
+   - Cualquier suposición que hayas hecho sobre los requisitos.
+3. **Script o documento** que demuestre el comportamiento bajo carga (opcional pero valorado).
+
+---
+
+## Reglas del juego
+
+- Puedes usar **cualquier librería** del ecosistema Python. No esperamos que reinventes ruedas.
+- Puedes usar **IA asistida** (Copilot, Claude, ChatGPT...) — la usamos a diario en Dribba. Pero el código que entregues es **tuyo**: tienes que poder explicar cada decisión en la entrevista de seguimiento.
+- Si una parte se vuelve un agujero negro de tiempo, **stub it y documéntalo**. Preferimos un sistema honesto e incompleto a uno que finja estar completo.
+- No queremos que dediques más de ~10-12 horas reales. Si te toma más, es señal de que el alcance está mal calibrado: cuéntanoslo.
+
+---
+
+## Entrevista de seguimiento
+
+Tras la entrega tendremos una sesión de ~45-60 minutos donde:
+- Te pediremos defender tus decisiones de diseño.
+- Plantearemos extensiones hipotéticas ("¿y si ahora hay 10.000 dispositivos emitiendo a 100Hz?") para ver cómo evolucionarías el sistema.
+- Haremos pair programming sobre algún cambio pequeño en tu propio código.
+
+---
+
+**Si tienes dudas sobre el alcance, escríbenos antes de empezar.** Forma parte del ejercicio saber cuándo preguntar.
+
+¡Buena suerte!
